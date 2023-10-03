@@ -1,4 +1,5 @@
 mod player;
+use itertools::Itertools;
 use player::Season;
 use rand::{seq::IteratorRandom, thread_rng};
 use std::env;
@@ -15,12 +16,14 @@ fn output_skill_levels(season: Season) {
         let player_sample = players.iter().choose_multiple(&mut rng, MCC_PLAYER_COUNT);
         for player in player_sample.iter() {
             let mut first_place_probability = 0.0;
-            for &coin in player.coin_history.iter().filter(|&&x| x > 0) {
-                let mut mass = player.epmf(coin);
-                for opponent in player_sample.iter().filter(|&p| p != player) {
-                    mass *= opponent.ecdf(coin);
-                }
-                first_place_probability += mass;
+            for &coin in player.coin_history.iter().filter(|&&x| x > 0).unique() {
+                let mass = player.epmf(coin);
+                let ecdf_product = player_sample
+                    .iter()
+                    .filter(|&opponent| opponent != player)
+                    .map(|&opponent| opponent.ecdf(coin))
+                    .product::<f64>();
+                first_place_probability += mass * ecdf_product;
             }
             let index = players.iter().position(|p| &p == player).unwrap();
             skills[index] += first_place_probability;

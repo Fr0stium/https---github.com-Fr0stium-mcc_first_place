@@ -64,7 +64,7 @@ pub fn get_players(season: Season) -> Vec<Player> {
     let reader = BufReader::new(file);
     for line in reader.lines().flatten() {
         let split_line: Vec<&str> = line.split(',').collect();
-        let username = String::from(split_line[0]);
+        let username = String::from(split_line[0]).trim().to_string();
         let mut coin_history = Vec::<u32>::new();
         let mut has_played = false;
         for coin_str in split_line.iter().skip(1).take(STOP_AT_MCC) {
