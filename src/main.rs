@@ -1,61 +1,32 @@
+mod output;
 mod player;
-use itertools::Itertools;
-use player::Season;
-use rand::{seq::IteratorRandom, thread_rng};
+mod season;
 use std::env;
-
-const MCC_PLAYER_COUNT: usize = 40;
-
-fn output_skill_levels(season: Season) {
-    let mut players = player::get_players(season);
-    let mut rng = thread_rng();
-    let mut skills = vec![0.0; players.len()];
-    let mut simulations = 1;
-    loop {
-        // Pick 40 players from the available ones.
-        let player_sample = players.iter().choose_multiple(&mut rng, MCC_PLAYER_COUNT);
-        for player in player_sample.iter() {
-            let mut first_place_probability = 0.0;
-            for &coin in player.coin_history.iter().filter(|&&x| x > 0).unique() {
-                let mass = player.epmf(coin);
-                let ecdf_product = player_sample
-                    .iter()
-                    .filter(|&opponent| opponent != player)
-                    .map(|&opponent| opponent.ecdf(coin))
-                    .product::<f64>();
-                first_place_probability += mass * ecdf_product;
-            }
-            let index = players.iter().position(|p| &p == player).unwrap();
-            skills[index] += first_place_probability;
-        }
-        // Print progress every time the number of simulations is a power of 2.
-        if simulations & (simulations - 1) == 0 {
-            print!("{esc}c", esc = 27 as char); // Clears the console to print.
-            for i in 0..players.len() {
-                players[i].skill = skills[i] / (simulations as f64);
-            }
-            let mut sorted = players.clone();
-            sorted.sort_by(|a, b| a.skill.partial_cmp(&b.skill).unwrap());
-            for player in sorted.iter() {
-                println!("{}, {}", player.username, player.skill);
-            }
-            println!("Simulations: {simulations}");
-        }
-        simulations += 1;
-    }
-}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     match args.len() {
-        1 => output_skill_levels(Season::All),
+        1 => output::output_win_probabilities(&season::Season::All, usize::MAX),
         2 => match args[1].parse::<u32>() {
-            Ok(1) => output_skill_levels(Season::Season1),
-            Ok(2) => output_skill_levels(Season::Season2),
-            Ok(3) => output_skill_levels(Season::Season3),
-            Err(_) => println!("Type in an integer"),
-            _ => println!("Season not found"),
+            Ok(season) => match season {
+                0 => output::output_win_probabilities(&season::Season::All, usize::MAX),
+                1 => output::output_win_probabilities(&season::Season::Season1, usize::MAX),
+                2 => output::output_win_probabilities(&season::Season::Season2, usize::MAX),
+                3 => output::output_win_probabilities(&season::Season::Season3, usize::MAX),
+                _ => println!("Season {season} not found."),
+            },
+            Err(err) => println!("Error: {err}. Type in an integer."),
         },
-        _ => println!("Wrong number of arguments"),
+        3 => match (args[1].parse::<u32>(), args[2].parse::<usize>()) {
+            (Ok(season), Ok(count)) => match season {
+                0 => output::output_win_probabilities(&season::Season::All, count),
+                1 => output::output_win_probabilities(&season::Season::Season1, count),
+                2 => output::output_win_probabilities(&season::Season::Season2, count),
+                3 => output::output_win_probabilities(&season::Season::Season3, count),
+                _ => println!("Season not found."),
+            },
+            (Err(err), _) | (_, Err(err)) => println!("Error: {err}. Type in an integer."),
+        },
+        _ => println!("Error: specify at most 2 arguments."),
     }
 }
