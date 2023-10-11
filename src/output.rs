@@ -13,6 +13,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize) {
     let mut players = get_players(season, stop_at_mcc);
     let mut rng = thread_rng();
     let mut win_probabilities = vec![0.0; players.len()];
+    let mut counts = vec![0; players.len()];
     let mut simulations = 1;
 
     loop {
@@ -33,6 +34,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize) {
 
             let index = players.iter().position(|p| &p == player).unwrap();
             win_probabilities[index] += win_probability;
+            counts[index] += 1;
         }
 
         // Print progress every time the number of simulations is a power of 2.
@@ -40,11 +42,14 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize) {
             print!("{esc}c", esc = 27 as char); // Clears the console to print.
 
             for i in 0..players.len() {
-                players[i].win_probability = win_probabilities[i] / (simulations as f64);
+                if counts[i] != 0
+                {
+                    players[i].win_probability = win_probabilities[i] / (counts[i] as f64);
+                }
             }
 
             let mut sorted = players.clone();
-            sorted.sort_by(|a, b| a.win_probability.partial_cmp(&b.win_probability).unwrap());
+            sorted.sort_by(|a, b| b.win_probability.partial_cmp(&a.win_probability).unwrap());
 
             for player in sorted.iter() {
                 println!("{}, {}", player.username, player.win_probability);
