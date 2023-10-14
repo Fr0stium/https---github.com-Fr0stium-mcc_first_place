@@ -40,7 +40,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                     .filter(|&q| q != p)
                     .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
 
-                for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                for &c in p.coin_history.iter().flatten().unique() {
                     let p_pmf_e = p.epmf(c);
 
                     // To compute the sample win probability, compute the product of all the eCDFs.
@@ -57,7 +57,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
         }
     } else {
         for p in players.iter() {
-            let n_p = p.coin_history.iter().filter(|&&x| x > 0).count() as f64;
+            let n_p = p.coin_history.iter().flatten().count() as f64;
 
             let mut win_probability_sum = 0.0;
             let mut variance_sum = 0.0;
@@ -75,7 +75,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                     .filter(|&opponent| opponent != p)
                     .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
 
-                for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                for &c in p.coin_history.iter().flatten().unique() {
                     let p_pmf_e = p.epmf(c);
 
                     // To compute the sample win probability, compute the product of all the eCDFs.
@@ -88,7 +88,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                     let p_pmf_2_e = (p_pmf_e + (n_p - 1.0) * p_pmf_e.powi(2)) / n_p;
                     let mut product_q_ecdf_2_e = 1.0;
                     for q in opponent_sample.iter() {
-                        let n_q = q.coin_history.iter().filter(|&&x| x > 0).count() as f64;
+                        let n_q = q.coin_history.iter().flatten().count() as f64;
                         let q_ecdf = q.ecdf(c);
                         product_q_ecdf_2_e *= (q_ecdf + (n_q - 1.0) * q_ecdf.powi(2)) / n_q;
                     }
@@ -116,7 +116,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                 let mut sample_win_probability_q = 0.0;
                 let mut sample_win_probability_r = 0.0;
 
-                for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                for &c in p.coin_history.iter().flatten().unique() {
                     let p_pmf_e = p.epmf(c);
                     let product_q_ecdf_e = sample_1.iter().map(|q| q.ecdf(c)).product::<f64>();
                     let product_r_ecdf_e = sample_2.iter().map(|r| r.ecdf(c)).product::<f64>();
@@ -127,8 +127,8 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                 covariance -= sample_win_probability_q * sample_win_probability_r;
                 let mut coin_pair_sum = 0.0;
 
-                for &c_1 in p.coin_history.iter().filter(|&&x| x > 0).unique() {
-                    for &c_2 in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                for &c_1 in p.coin_history.iter().flatten().unique() {
+                    for &c_2 in p.coin_history.iter().flatten().unique() {
                         let mut k_p = 1.0;
                         if c_1 == c_2 {
                             k_p *= (p.epmf(c_1) + (n_p - 1.0) * p.epmf(c_1).powi(2)) / n_p;
@@ -136,8 +136,8 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                             k_p *= p.epmf(c_1) * p.epmf(c_2);
                         }
                         for (q, r) in sample_1.iter().zip(sample_2.iter()) {
-                            let n_q = q.coin_history.iter().filter(|&&x| x > 0).count() as f64;
-                            let n_r = r.coin_history.iter().filter(|&&x| x > 0).count() as f64;
+                            let n_q = q.coin_history.iter().flatten().count() as f64;
+                            let n_r = r.coin_history.iter().flatten().count() as f64;
                             if c_1 == c_2 && n_q == n_r {
                                 k_p *= (q.ecdf(c_1) + (n_q - 1.0) * q.ecdf(c_1).powi(2)) / n_q;
                             } else {
@@ -156,7 +156,8 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
             }
 
             let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
-            let variance = (variance_sum + 2.0 * covariance_sum) / (SIMULATIONS_PER_PLAYER.pow(2) as f64);
+            let variance =
+                (variance_sum + 2.0 * covariance_sum) / (SIMULATIONS_PER_PLAYER.pow(2) as f64);
             let se = variance.sqrt();
             let ci_l = (win_probability - 1.96 * se).max(0.0);
             let ci_u = (win_probability + 1.96 * se).min(1.0);
@@ -173,13 +174,14 @@ fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
     for line in reader.lines().flatten() {
         let split_line: Vec<&str> = line.split(',').collect();
         let username = String::from(split_line[0]).trim().to_string();
-        let mut coin_history = Vec::<i32>::new();
+        let mut coin_history = Vec::new();
         let mut has_played = false;
 
         for coin_str in split_line.iter().skip(1).take(stop_at_mcc) {
             let coins = coin_str.trim().parse().unwrap();
+            let coins: Option<i32> = if coins > 0 { Some(coins) } else { None };
             coin_history.push(coins);
-            if !has_played && coins > 0 {
+            if !has_played && coins.is_some() {
                 has_played = true;
             }
         }
@@ -190,8 +192,6 @@ fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
 
         let player = Player {
             coin_history,
-            win_probability: 0.0,
-            variance: 0.0,
             username,
         };
         players.push(player);

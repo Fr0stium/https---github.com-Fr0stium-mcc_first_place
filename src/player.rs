@@ -1,17 +1,15 @@
 #[derive(Clone)]
 pub struct Player {
-    pub win_probability: f64,
-    pub variance: f64,
     pub username: String,
-    pub coin_history: Vec<i32>,
+    pub coin_history: Vec<Option<i32>>,
 }
 
 impl Player {
     /// Finds the proportion of coins less than or equal to `c`.
     pub fn ecdf(&self, c: i32) -> f64 {
         let coin_history = &self.coin_history;
-        let n = coin_history.iter().filter(|&&x| x > 0).count();
-        let count = coin_history.iter().filter(|&&x| x > 0 && x <= c).count();
+        let n = coin_history.iter().flatten().count();
+        let count = coin_history.iter().flatten().filter(|&&x| x <= c).count();
 
         (count as f64) / (n as f64)
     }
@@ -19,8 +17,8 @@ impl Player {
     /// Finds the proportion of coins exactly equal to `c`.
     pub fn epmf(&self, c: i32) -> f64 {
         let coin_history = &self.coin_history;
-        let n = coin_history.iter().filter(|&&x| x > 0).count();
-        let count = coin_history.iter().filter(|&&x| x == c).count();
+        let n = coin_history.iter().flatten().count();
+        let count = coin_history.iter().flatten().filter(|&&x| x == c).count();
 
         (count as f64) / (n as f64)
     }
