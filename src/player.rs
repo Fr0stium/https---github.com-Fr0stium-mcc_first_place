@@ -2,6 +2,7 @@
 pub struct Player {
     pub username: String,
     pub coin_history: Vec<Option<i32>>,
+    pub playcount: usize,
 }
 
 impl Player {

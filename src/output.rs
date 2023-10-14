@@ -57,7 +57,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
         }
     } else {
         for p in players.iter() {
-            let n_p = p.coin_history.iter().flatten().count() as f64;
+            let n_p = p.playcount as f64;
 
             let mut win_probability_sum = 0.0;
             let mut variance_sum = 0.0;
@@ -88,7 +88,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                     let p_pmf_2_e = (p_pmf_e + (n_p - 1.0) * p_pmf_e.powi(2)) / n_p;
                     let mut product_q_ecdf_2_e = 1.0;
                     for q in opponent_sample.iter() {
-                        let n_q = q.coin_history.iter().flatten().count() as f64;
+                        let n_q = q.playcount as f64;
                         let q_ecdf = q.ecdf(c);
                         product_q_ecdf_2_e *= (q_ecdf + (n_q - 1.0) * q_ecdf.powi(2)) / n_q;
                     }
@@ -136,8 +136,8 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                             k_p *= p.epmf(c_1) * p.epmf(c_2);
                         }
                         for (q, r) in sample_1.iter().zip(sample_2.iter()) {
-                            let n_q = q.coin_history.iter().flatten().count() as f64;
-                            let n_r = r.coin_history.iter().flatten().count() as f64;
+                            let n_q = q.playcount as f64;
+                            let n_r = r.playcount as f64;
                             if c_1 == c_2 && n_q == n_r {
                                 k_p *= (q.ecdf(c_1) + (n_q - 1.0) * q.ecdf(c_1).powi(2)) / n_q;
                             } else {
@@ -190,9 +190,12 @@ fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
             continue;
         }
 
+        let playcount = coin_history.iter().flatten().count();
+
         let player = Player {
             coin_history,
             username,
+            playcount,
         };
         players.push(player);
     }
