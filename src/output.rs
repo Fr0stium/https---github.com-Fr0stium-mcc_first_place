@@ -9,65 +9,105 @@ use std::{
 const MCC_PLAYER_COUNT: usize = 40;
 const SIMULATIONS_PER_PLAYER: usize = 2 << 19;
 
-/// Randomly picks `MCC_PLAYER_COUNT` players from the available ones, then computes the win probability for each player in the sample.
-pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize) {
+/// For each player p, this function randomly picks `MCC_PLAYER_COUNT` players
+/// from the remaining ones to face against p, and computes the win probability
+/// of p in that chosen sample. This is repeated `SIMULATIONS_PER_PLAYER` times,
+/// and then the average of all the win probabilities is taken.
+///
+/// This function will also calculate approximate confidence intervals
+/// on the outputed win probability if `calculate_variance` is set to true.
+/// However, it is very slow and uses a lot of memory! The variance is exactly
+/// calculated, then using the central limit theorem, it obtains an approximate CI.
+/// It is highly recommended that `SIMULATIONS_PER_PLAYER` is lowered
+/// SIGNIFICANTLY from the default in order to compute confidence intervals,
+/// or even that f64 is changed to f32. This is a naive implementation, and it can
+/// easily use gigabytes of memory! Don't crash your PC!
+pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_variance: bool) {
     let players = get_players(season, stop_at_mcc);
-    let calculate_variance = false;
     let mut rng = thread_rng();
 
     println!("Simulations per player: {}", SIMULATIONS_PER_PLAYER);
 
-    for i in 0..players.len() {
-        let p = &players[i];
-        let n_p = p.coin_history.iter().filter(|&&x| x > 0).count() as f64;
+    if !calculate_variance {
+        for p in players.iter() {
+            let mut win_probability_sum = 0.0;
 
-        let mut win_probability_sum = 0.0;
-        let mut variance_sum = 0.0;
-        let mut covariance_sum = 0.0;
+            for _ in 0..SIMULATIONS_PER_PLAYER {
+                let mut sample_win_probability = 0.0;
 
-        let mut samples = Vec::new();
-        let mut sample_win_probabilities = Vec::new();
+                let opponent_sample = players
+                    .iter()
+                    .filter(|&q| q != p)
+                    .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
 
-        for _ in 0..SIMULATIONS_PER_PLAYER {
-            let mut sample_win_probability = 0.0;
-            let mut sample_variance: f64 = 0.0;
+                for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                    let p_pmf_e = p.epmf(c);
 
-            let opponent_sample = players
-                .iter()
-                .filter(|&opponent| opponent != p)
-                .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
+                    // To compute the sample win probability, compute the product of all the eCDFs.
+                    let product_q_ecdf_e =
+                        opponent_sample.iter().map(|q| q.ecdf(c)).product::<f64>();
 
-            for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
-                let p_pmf_e = p.epmf(c);
-
-                // To compute the sample win probability, compute the product of all the eCDFs.
-                let product_q_ecdf_e = opponent_sample.iter().map(|q| q.ecdf(c)).product::<f64>();
-
-                sample_win_probability += p_pmf_e * product_q_ecdf_e;
-
-                // To compute the sample variance, compute this product.
-                let p_pmf_2_e = (p_pmf_e + (n_p - 1.0) * p_pmf_e.powi(2)) / n_p;
-                let mut product_q_ecdf_2_e = 1.0;
-                for q in opponent_sample.iter() {
-                    let n_q = q.coin_history.iter().filter(|&&x| x > 0).count() as f64;
-                    let q_ecdf = q.ecdf(c);
-                    product_q_ecdf_2_e *= (q_ecdf + (n_q - 1.0) * q_ecdf.powi(2)) / n_q;
+                    sample_win_probability += p_pmf_e * product_q_ecdf_e;
                 }
 
-                sample_variance +=
-                    p_pmf_2_e * product_q_ecdf_2_e - (p_pmf_e * product_q_ecdf_e).powi(2);
+                win_probability_sum += sample_win_probability;
             }
+            let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
+            println!("{}, {}", p.username, win_probability);
+        }
+    } else {
+        for p in players.iter() {
+            let n_p = p.coin_history.iter().filter(|&&x| x > 0).count() as f64;
 
-            win_probability_sum += sample_win_probability;
-            variance_sum += sample_variance;
+            let mut win_probability_sum = 0.0;
+            let mut variance_sum = 0.0;
+            let mut covariance_sum = 0.0;
 
-            if calculate_variance {
+            let mut samples = Vec::new();
+            let mut sample_win_probabilities = Vec::new();
+
+            for _ in 0..SIMULATIONS_PER_PLAYER {
+                let mut sample_win_probability = 0.0;
+                let mut sample_variance: f64 = 0.0;
+
+                let opponent_sample = players
+                    .iter()
+                    .filter(|&opponent| opponent != p)
+                    .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
+
+                for &c in p.coin_history.iter().filter(|&&x| x > 0).unique() {
+                    let p_pmf_e = p.epmf(c);
+
+                    // To compute the sample win probability, compute the product of all the eCDFs.
+                    let product_q_ecdf_e =
+                        opponent_sample.iter().map(|q| q.ecdf(c)).product::<f64>();
+
+                    sample_win_probability += p_pmf_e * product_q_ecdf_e;
+
+                    // To compute the sample variance, compute this product.
+                    let p_pmf_2_e = (p_pmf_e + (n_p - 1.0) * p_pmf_e.powi(2)) / n_p;
+                    let mut product_q_ecdf_2_e = 1.0;
+                    for q in opponent_sample.iter() {
+                        let n_q = q.coin_history.iter().filter(|&&x| x > 0).count() as f64;
+                        let q_ecdf = q.ecdf(c);
+                        product_q_ecdf_2_e *= (q_ecdf + (n_q - 1.0) * q_ecdf.powi(2)) / n_q;
+                    }
+
+                    sample_variance +=
+                        p_pmf_2_e * product_q_ecdf_2_e - (p_pmf_e * product_q_ecdf_e).powi(2);
+                }
+
+                win_probability_sum += sample_win_probability;
+                variance_sum += sample_variance;
+
                 sample_win_probabilities.push(sample_win_probability);
                 samples.push(opponent_sample);
             }
-        }
 
-        if calculate_variance {
+            // Note: this will compute the covariance exactly. It is VERY SLOW, and the CIs will be wide.
+            // I estimate this has time complexity O(n^6).
+            // Reducing the number of simulations per player is highly recommended.
+            // This should only be used to get a general idea of the uncertainty in the point estimate.
             for sample_pair in samples.iter().combinations(2) {
                 let mut covariance = 0.0;
                 let sample_1 = sample_pair[0];
@@ -114,18 +154,13 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize) {
                 covariance += coin_pair_sum;
                 covariance_sum += covariance;
             }
-        }
 
-        let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
-
-        if calculate_variance {
+            let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
             let variance = (variance_sum + covariance_sum) / (SIMULATIONS_PER_PLAYER.pow(2) as f64);
             let se = variance.sqrt();
             let ci_l = (win_probability - 1.96 * se).max(0.0);
             let ci_u = (win_probability + 1.96 * se).min(1.0);
             println!("{}, {}, ({}, {})", p.username, win_probability, ci_l, ci_u);
-        } else {
-            println!("{}, {}", p.username, win_probability);
         }
     }
 }
