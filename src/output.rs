@@ -9,7 +9,7 @@ use std::{
 const MCC_PLAYER_COUNT: usize = 40;
 const SIMULATIONS_PER_PLAYER: usize = 2 << 19;
 
-/// For each player p, this function randomly picks `MCC_PLAYER_COUNT` players
+/// For each player p, this function randomly picks `MCC_PLAYER_COUNT - 1` players
 /// from the remaining ones to face against p, and computes the win probability
 /// of p in that chosen sample. This is repeated `SIMULATIONS_PER_PLAYER` times,
 /// and then the average of all the win probabilities is taken.
