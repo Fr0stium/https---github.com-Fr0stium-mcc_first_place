@@ -156,7 +156,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
             }
 
             let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
-            let variance = (variance_sum + covariance_sum) / (SIMULATIONS_PER_PLAYER.pow(2) as f64);
+            let variance = (variance_sum + 2.0 * covariance_sum) / (SIMULATIONS_PER_PLAYER.pow(2) as f64);
             let se = variance.sqrt();
             let ci_l = (win_probability - 1.96 * se).max(0.0);
             let ci_u = (win_probability + 1.96 * se).min(1.0);
