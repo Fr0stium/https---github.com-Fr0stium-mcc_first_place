@@ -7,7 +7,7 @@ use std::{
 };
 
 const MCC_PLAYER_COUNT: usize = 40;
-const SIMULATIONS_PER_PLAYER: usize = 2 << 19;
+const SIMULATIONS_PER_PLAYER: usize = 2 << 20;
 
 /// For each player p, this function randomly picks `MCC_PLAYER_COUNT - 1` players
 /// from the remaining ones to face against p, and computes the win probability
@@ -31,13 +31,37 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
     if !calculate_variance {
         for p in players.iter() {
             let mut win_probability_sum = 0.0;
+            let max_coins = *p.coin_history.iter().flatten().max().unwrap();
+
+            // Only make this player compete against opponents they have a chance of beating.
+            let players_to_sample_from = players
+                .iter()
+                .filter(|q| q != &p && q.ecdf(max_coins) > 0.0)
+                .collect::<Vec<&Player>>();
+
+            let players_len = players.len();
+            let players_to_sample_from_len = players_to_sample_from.len();
+
+            // If the pool of opponents is less than 39, then there exists no MCC where the player can win.
+            // Just return 0 in this case.
+            if players_to_sample_from_len < 39 {
+                println!("{}, {}", p.username, 0);
+                continue;
+            }
+
+            // Adjust the win probability to account for the smaller pool of opponents, if necessary.
+            let mut ratio = 1.0;
+
+            for i in 0..MCC_PLAYER_COUNT - 1 {
+                ratio *= ((players_to_sample_from_len - i) as f64) / ((players_len - 1 - i) as f64);
+            }
 
             for _ in 0..SIMULATIONS_PER_PLAYER {
                 let mut sample_win_probability = 0.0;
 
-                let opponent_sample = players
+                let opponent_sample = players_to_sample_from
                     .iter()
-                    .filter(|&q| q != p)
+                    .filter(|&&q| q != p)
                     .choose_multiple(&mut rng, MCC_PLAYER_COUNT - 1);
 
                 for &c in p.coin_history.iter().flatten().unique() {
@@ -52,7 +76,8 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
 
                 win_probability_sum += sample_win_probability;
             }
-            let win_probability = win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
+
+            let win_probability = ratio * win_probability_sum / (SIMULATIONS_PER_PLAYER as f64);
             println!("{}, {}", p.username, win_probability);
         }
     } else {
