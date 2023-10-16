@@ -44,7 +44,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
 
             // If the pool of opponents is less than 39, then there exists no MCC where the player can win.
             // Just return 0 in this case.
-            if players_to_sample_from_len < 39 {
+            if players_to_sample_from_len < MCC_PLAYER_COUNT - 1 {
                 println!("{}, {}", p.username, 0);
                 continue;
             }
@@ -130,7 +130,7 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
             }
 
             // Note: this will compute the covariance exactly. It is VERY SLOW, and the CIs will be wide.
-            // I estimate this has time complexity O(n^6).
+            // I estimate this has time complexity O(n^5).
             // Reducing the number of simulations per player is highly recommended.
             // This should only be used to get a general idea of the uncertainty in the point estimate.
             for sample_pair in samples.iter().combinations(2) {
