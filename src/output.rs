@@ -103,7 +103,6 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
                 for &c in p.coin_history.iter().flatten().unique() {
                     let p_pmf_e = p.epmf(c);
 
-                    // To compute the sample win probability, compute the product of all the eCDFs.
                     let product_q_ecdf_e =
                         opponent_sample.iter().map(|q| q.ecdf(c)).product::<f64>();
 
@@ -199,7 +198,6 @@ pub fn output_win_probabilities_custom(custom: &File) {
         for &c in p.coin_history.iter().flatten().unique() {
             let p_pmf_e = p.epmf(c);
 
-            // To compute the win probability, compute the product of all the eCDFs.
             let product_q_ecdf_e = players
                 .iter()
                 .filter(|q| q != &p)
@@ -225,12 +223,11 @@ fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
         let mut has_played = false;
 
         for coin_str in split_line.iter().skip(1).take(stop_at_mcc) {
-            let coins = coin_str.trim().parse().unwrap();
-            let coins: Option<i32> = if coins > 0 { Some(coins) } else { None };
-            coin_history.push(coins);
-            if !has_played && coins.is_some() {
+            let coins = coin_str.trim().parse::<i32>();
+            if !has_played && coins.is_ok() {
                 has_played = true;
             }
+            coin_history.push(coins);
         }
 
         if !has_played {
