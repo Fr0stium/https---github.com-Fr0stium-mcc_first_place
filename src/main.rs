@@ -1,7 +1,7 @@
 mod output;
 mod player;
 mod season;
-use std::env;
+use std::{env, fs::File};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -32,7 +32,10 @@ fn main() {
                 ),
                 _ => println!("Season {season} not found."),
             },
-            Err(err) => println!("Error: {err}. Type in an integer."),
+            Err(_) => match File::open(&args[1]) {
+                Ok(custom) => output::output_win_probabilities_custom(&custom),
+                Err(err) => println!("Error: {err}."),
+            },
         },
         3 => match (args[1].parse::<u32>(), args[2].parse::<usize>()) {
             (Ok(season), Ok(count)) => match season {

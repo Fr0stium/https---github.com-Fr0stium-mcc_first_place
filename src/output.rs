@@ -191,6 +191,28 @@ pub fn output_win_probabilities(season: &Season, stop_at_mcc: usize, calculate_v
     }
 }
 
+pub fn output_win_probabilities_custom(custom: &File) {
+    let players = get_players_custom(custom);
+
+    for p in players.iter() {
+        let mut win_probability = 0.0;
+        for &c in p.coin_history.iter().flatten().unique() {
+            let p_pmf_e = p.epmf(c);
+
+            // To compute the win probability, compute the product of all the eCDFs.
+            let product_q_ecdf_e = players
+                .iter()
+                .filter(|q| q != &p)
+                .map(|q| q.ecdf(c))
+                .product::<f64>();
+
+            win_probability += p_pmf_e * product_q_ecdf_e;
+        }
+
+        println!("{}, {}", p.username, win_probability);
+    }
+}
+
 fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
     let mut players = Vec::new();
     let file = File::open(season.get_file()).unwrap();
@@ -225,4 +247,24 @@ fn get_players(season: &Season, stop_at_mcc: usize) -> Vec<Player> {
         players.push(player);
     }
     players
+}
+
+fn get_players_custom(custom: &File) -> Vec<Player> {
+    let players: Vec<Player> = get_players(&Season::All, usize::MAX);
+    let reader = BufReader::new(custom);
+
+    let mut players_custom = Vec::<Player>::new();
+
+    for username in reader.lines().flatten() {
+        if let Some(pos) = players
+            .iter()
+            .position(|p| p.username.to_ascii_lowercase() == username.trim().to_ascii_lowercase())
+        {
+            players_custom.push(players[pos].clone());
+        } else {
+            println!("Could not find player \"{username}\".");
+        }
+    }
+
+    players_custom
 }
